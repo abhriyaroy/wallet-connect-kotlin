@@ -54,9 +54,7 @@ Another USP is that for every `request's callback`, we can receive the `topic` a
  
               val session = initWCSession(uri)
               clientMeta = WCPeerMeta("", "")
-              if (multiWcClient == null) {
-                multiWcClient = MultiWCClientManager(okHttpClientProvider.getInstance())
-              }
+              val multiWcClient = MultiWCClientManager(okHttpClientProvider.getInstance())
               val listener = WCClientCallBacksListener()
               listener.onSessionRequest = ::onSessionRequest
               listener.onEthSign = ::onEthSign
