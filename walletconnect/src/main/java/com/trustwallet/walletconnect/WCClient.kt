@@ -6,6 +6,8 @@ import com.github.salomonbrys.kotson.registerTypeAdapter
 import com.github.salomonbrys.kotson.typeToken
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonArray
+import com.trustwallet.walletconnect.WCCipher.decrypt
+import com.trustwallet.walletconnect.WCCipher.encrypt
 import com.trustwallet.walletconnect.exceptions.InvalidJsonRpcParamsException
 import com.trustwallet.walletconnect.extensions.hexStringToByteArray
 import com.trustwallet.walletconnect.jsonrpc.JsonRpcError
@@ -20,8 +22,6 @@ import com.trustwallet.walletconnect.models.session.WCApproveSessionResponse
 import com.trustwallet.walletconnect.models.session.WCSession
 import com.trustwallet.walletconnect.models.session.WCSessionRequest
 import com.trustwallet.walletconnect.models.session.WCSessionUpdate
-import com.trustwallet.walletconnect.security.decrypt
-import com.trustwallet.walletconnect.security.encrypt
 import okhttp3.*
 import okio.ByteString
 import java.util.*
@@ -46,6 +46,8 @@ open class WCClient(
         .create()
 
     private var socket: WebSocket? = null
+
+    private val listeners: MutableSet<WebSocketListener> = mutableSetOf()
 
     var session: WCSession? = null
         private set
@@ -90,10 +92,10 @@ open class WCClient(
         Log.d(TAG, "<< websocket opened >>")
         isConnected = true
 
-        val session =
-            this.session ?: throw IllegalStateException("session can't be null on connection open")
-        val peerId =
-            this.peerId ?: throw IllegalStateException("peerId can't be null on connection open")
+        listeners.forEach { it.onOpen(webSocket, response) }
+
+        val session = this.session ?: throw IllegalStateException("session can't be null on connection open")
+        val peerId = this.peerId ?: throw IllegalStateException("peerId can't be null on connection open")
         // The Session.topic channel is used to listen session request messages only.
         subscribe(session.topic)
         // The peerId channel is used to listen to all messages sent to this httpClient.
@@ -101,8 +103,10 @@ open class WCClient(
     }
 
     override fun onMessage(webSocket: WebSocket, text: String) {
+        var decrypted: String? = null
         try {
             Log.d(TAG, "<== message $text")
+
             val message = gson.fromJson<WCSocketMessage>(text)
             val encrypted = gson.fromJson<WCEncryptionPayload>(message.payload)
             val session = this.session
@@ -130,6 +134,7 @@ open class WCClient(
 
     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
         resetState()
+
         onFailure(this.session?.topic ?: "", t)
     }
 
@@ -145,6 +150,31 @@ open class WCClient(
         Log.d(TAG, "<< closing socket >>")
         resetState()
         onDisconnect(this.session?.topic ?: "", code, reason)
+
+//        onFailure(t)
+//
+//        listeners.forEach { it.onFailure(webSocket, t, response) }
+//    }
+//
+//    override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+//        Log.d(TAG,"<< websocket closed >>")
+//
+//        listeners.forEach { it.onClosed(webSocket, code, reason) }
+//    }
+//
+//    override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+//        Log.d(TAG,"<== pong")
+//
+//        listeners.forEach { it.onMessage(webSocket, bytes) }
+//    }
+//
+//    override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+//        Log.d(TAG,"<< closing socket >>")
+//
+//        resetState()
+//        onDisconnect(code, reason)
+//
+//        listeners.forEach { it.onClosing(webSocket, code, reason) }
     }
 
     fun connect(
@@ -238,6 +268,13 @@ open class WCClient(
             )
         )
         return encryptAndSend(gson.toJson(response))
+    }
+
+    private fun decryptMessage(text: String): String {
+        val message = gson.fromJson<WCSocketMessage>(text)
+        val encrypted = gson.fromJson<WCEncryptionPayload>(message.payload)
+        val session = this.session ?: throw IllegalStateException("session can't be null on message receive")
+        return String(WCCipher.decrypt(encrypted, session.key.hexStringToByteArray()), Charsets.UTF_8)
     }
 
     private fun invalidParams(id: Long): Boolean {
@@ -358,6 +395,7 @@ open class WCClient(
     }
 
     private fun encryptAndSend(result: String): Boolean {
+        
         Log.d(TAG, "==> message $result")
         val session =
             this.session ?: throw IllegalStateException("session can't be null on message send")
@@ -367,6 +405,9 @@ open class WCClient(
                 session.key.hexStringToByteArray()
             )
         )
+//        Log.d(TAG,"==> message $result")
+//        val session = this.session ?: throw IllegalStateException("session can't be null on message send")
+//        val payload = gson.toJson(WCCipher.encrypt(result.toByteArray(Charsets.UTF_8), session.key.hexStringToByteArray()))
         val message = WCSocketMessage(
             // Once the remotePeerId is defined, all messages must be sent to this channel. The session.topic channel
             // will be used only to respond the session request message.
@@ -383,6 +424,14 @@ open class WCClient(
 
     fun disconnect(): Boolean {
         return socket?.close(WS_CLOSE_NORMAL, null) ?: false
+    }
+
+    fun addSocketListener(listener: WebSocketListener) {
+        listeners.add(listener)
+    }
+
+    fun removeSocketListener(listener: WebSocketListener) {
+        listeners.remove(listener)
     }
 
     private fun resetState() {
