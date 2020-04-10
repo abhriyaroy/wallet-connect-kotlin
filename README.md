@@ -64,6 +64,7 @@ Another USP is that for every `request's callback`, we can receive the `topic` a
               listener.onCustomRequest = ::onCustomRequest
               listener.onDisconnect = ::onDisconnect
               multiWcClient!!.connect(session, listener, clientMeta)
+<br>
               
               
               private fun onSessionRequest(topic: String, id: Long, peer: WCPeerMeta) {
