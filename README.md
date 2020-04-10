@@ -9,9 +9,10 @@
 # Table of Contents
 
 - [Introduction](#introduction) <br>
-- [Why did I maintain a separate repo?](#why-did-i-maintain-a-separate-repo)
+- [Why did I maintain a separate repo?](#why-did-i-maintain-a-separate-repo) <br>
 - [Installation](#installation) <br>
-- [About the Author](#about–the-author)<br>
+- [Example App](#example-app) <br>
+- [About the Author](#about-the-author)<br>
 
 ## Introduction
 
@@ -89,7 +90,11 @@ Another USP is that for every `request's callback`, we can receive the `topic` a
                 // Do something
               }
               
-              
+## Example App
+To experience this, you can head over to the [Matic Wallet](https://play.google.com/store/apps/details?id=network.matic.wallet&hl=en_IN) <b>beta version</b> and check it out yourself.
+<br>
+
+
 ## About the Author
 
 ### Abhriya Roy
